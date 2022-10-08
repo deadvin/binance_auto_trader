@@ -10,6 +10,7 @@ import zmq
 
 
 # =======   ZMQ CLIENT
+
 context = zmq.Context()
 socket = context.socket(zmq.REP)
 socket.bind("tcp://*:5555")
@@ -21,9 +22,8 @@ client = Client(api_key, api_secret,  {"verify": True, "timeout": 60})
 
 target_precent = 1.009
 stop_precent = 0.988
-# df_factors = pd.read_pickle('factors')
-# factors = df_factors.values.tolist()
-in_trades = 0
+df_factors = pd.read_pickle('factors')
+factors = df_factors.values.tolist()
 win = 0
 lost = 0
 all = 0
@@ -32,7 +32,7 @@ counter = 0
 multiplier = 15
 scale = 1.3
 list_tracking = []
-
+sym_list = []
 
 class symbol:
     def __init__(self, n):
@@ -50,30 +50,23 @@ class symbol:
         self.high = 0
         self.low = 0
         self.price = 0
-
-
         self.principle = 0
         self.trade_time = 0
-        self.price_1 = 0
+
         self.factor_60 = 0
         self.factor_90 = 0
         self.factor_120 = 0
         self.factor_150 = 0
         self.factor_180 = 0
 
-        # for l in factors:
-        #     if l[0] == self.name:
-        #         self.factor_60 = (l[1] - 1) * multiplier + 1
+        for l in factors:
+            if l[0] == self.name:
+                self.factor_60 = (l[1] - 1) * multiplier + 1
 
         self.factor_90 = (self.factor_60 - 1) * scale + 1
         self.factor_120 = (self.factor_90 - 1) * scale + 1
         self.factor_150 = (self.factor_120 - 1) * scale + 1
         self.factor_180 = (self.factor_150 - 1) * scale + 1
-
-
-# region Symbols List
-
-list = []
 
 margin_list = ['1INCH', 'ADA', 'ATOM', 'ANKR', 'ALGO', 'AVAX', 'AAVE','AUDIO', 'AR', 'AXS', 'ALICE', 'ANT', 'AGLD', 'BNB',
                 'BAT', 'BCH', 'BAKE', 'BNX', 'BICO', 'BETA', 'BLZ', 'COMP','CRV', 'CHZ', 'COTI', 'CHR', 'CAKE', 'C98',
@@ -84,30 +77,37 @@ margin_list = ['1INCH', 'ADA', 'ATOM', 'ANKR', 'ALGO', 'AVAX', 'AAVE','AUDIO', '
                 'POLS', 'POND', 'PEOPLE', 'QTUM', 'QUICK', 'RVN', 'ROSE','REEF', 'RAY', 'RNDR', 'SNX', 'SUSHI', 'SAND',
                  'SOL', 'SUPER', 'SLP', 'SHIB', 'SFP', 'TRX','TFUEL', 'THETA', 'TLM', 'TRIBE', 'UNI', 'UNFI', 'VET',
                 'VOXEL', 'WAVES', 'WIN', 'WAXP', 'XRP', 'XLM', 'XMR','XTZ', 'XEC', 'YFI', 'YFII', 'YGG', 'ZEC', 'ZIL'
-         ]
+]
 
 for s in margin_list:
-    list.append(symbol(s))
+    sym_list.append(symbol(s))
 
 
+def play_short_margin():
 
-def play():
-
-    global lost, win, first, counter, in_trades
+    global lost, win, first, counter, in_trade
 
     all_pairs = client.get_all_tickers()
 
     counter = counter + 1
 
-    for sym in list:
+    for sym in sym_list:
 
         cur_price = float(next(item for item in all_pairs if item["symbol"] == sym.name).get('price'))
 
-        if counter > 25 and in_trades < 2 and not sym.in_trade:
+        if counter > 25 and in_trade < 2 and not sym.in_trade:
 
             enter_trade = True
 
             # ===================   CONDITIONS TO ENTER TRADE  =======================
+            #
+            #
+            #
+            #
+            #
+            #
+            #
+
 
             if enter_trade:
 
@@ -115,7 +115,7 @@ def play():
                 if inf.get('isMarginTradingAllowed'):
 
                     print("================= ENTER TRADE =================")
-                    print(sym.name + " : ")
+                    print(sym.name + " : " + cur_price)
                     playsound('dark.mp3')
 
                     try:
@@ -135,13 +135,13 @@ def play():
 
                     dic = order.get('fills')
                     buy_price = float(dic[0]["price"])
-                    print("buy at" + str(buy_price))
+                    print("price after slippage: " + str(buy_price))
 
                     sym.in_trade = True
-                    in_trades += 1
-                    print('In Trades: ' + str(in_trades))
+                    in_trade += 1
+                    print('In Trades: ' + str(in_trade))
 
-                    #           ========    REPAY ORDER
+                    #   ====================   SET REPAY ORDER
 
                     details = client.get_margin_loan_details(asset=sym.name_short)
                     dic = details.get('rows')
@@ -158,7 +158,7 @@ def play():
 
                     price = round(buy_price * stop_precent, price_filter)
 
-                    print(str(price))
+                    print('Sell price: ' + str(price))
 
                     try:
 
@@ -201,7 +201,7 @@ def play():
             if order['status'] == 'FILLED':
 
                 sym.in_trade = False
-                in_trades -= 1
+                in_trade -= 1
                 win += 1
 
                 # dic = order.get('fills')
@@ -227,7 +227,7 @@ def play():
                 )
 
                 sym.in_trade = False
-                in_trades -= 1
+                in_trade -= 1
                 lost += 1
 
                 print("==========    LOSE  ===============")
@@ -320,30 +320,32 @@ def get_klines(sym,period):
 if __name__ == "__main__":
 
     while True:
-        play()
+        play_short_margin()
         time.sleep(10)
 
-    # t1 = threading.Thread(target=zmq)
-    # t1.start()
-    #
-    # while True:
-    #     time.sleep(5)
-    #     # print(list_tracking)
-    #     for s in list_tracking:
-    #         df_sym = get_klines(s.get("name").upper(), 30)
-    #         if df_sym.iloc[-1]['v'] > df_sym.iloc[-1]['vol'] * 3:
-    #             print(s.get("name"))
-    #             print(df_sym.iloc[-1]['vol'])
-    #             print(df_sym.iloc[-1]['v'])
-    #             print('----------------')
-    #         # if df_sym.iloc[-1]['div'] - df_btc.iloc[-1]['div'] > s.get("div") + 0.003:
-    #         #     print(s.get("name").upper())
-    #         #     print(str(df_sym.iloc[-1]['div'] - df_btc.iloc[-1]['div']))
-    #         #     print('---------------')
-    #
-    #         passed = time.time() - s.get("time")
-    #         if passed//60 > 5:
-    #             list_tracking.remove(s)
+    t1 = threading.Thread(target=zmq)
+    t1.start()
+
+    while True:
+        time.sleep(5)
+
+        for s in list_tracking:
+            df_sym = get_klines(s.get("name").upper(), 30)
+
+            if df_sym.iloc[-1]['v'] > df_sym.iloc[-1]['vol'] * 3:
+                print(s.get("name"))
+                print(df_sym.iloc[-1]['vol'])
+                print(df_sym.iloc[-1]['v'])
+                print('----------------')
+
+            if df_sym.iloc[-1]['div'] - df_btc.iloc[-1]['div'] > s.get("div") + 0.003:
+                print(s.get("name").upper())
+                print(str(df_sym.iloc[-1]['div'] - df_btc.iloc[-1]['div']))
+                print('---------------')
+
+            passed = time.time() - s.get("time")
+            if passed//60 > 5:
+                list_tracking.remove(s)
 
 
 
